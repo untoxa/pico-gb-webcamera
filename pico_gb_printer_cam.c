@@ -21,61 +21,60 @@
 uint16_t image[RXCOUNT];
 
 // storage implementation
-volatile uint32_t receive_data_pointer = 0;
-uint8_t receive_data[BUFFER_SIZE_KB * 1024];
+int32_t receive_counter = -1;
 bool receiving_frame = false;
 volatile bool image_received = false;
 
 void receive_data_reset(void) {
-    receive_data_pointer = 0;
 }
 
 void receive_data_init(void) {
-    receive_data_pointer = 0;
 }
+
+uint16_t x, y, dy;
 
 void receive_data_command(uint8_t b) {
     if (receiving_frame = (b == CAM_COMMAND_TRANSFER)) LED_ON;
-    receive_data_pointer = 0;
+    receive_counter = 0;
+    x = y = dy = 0;
 }
 
-void receive_data_write(uint8_t b) {
+void __not_in_flash_func(receive_data_write)(uint8_t b) {
+    static uint8_t bitplanes[2];
+    // if not "transfer image" then exit
     if (!receiving_frame) return;
-    if (receive_data_pointer < sizeof(receive_data))
-         receive_data[receive_data_pointer++] = b;
+    // skip header bytes
+    if (++receive_counter < 4) return;
+    // collect bitplanes data
+    bitplanes[(receive_counter - 4) & 0x01] = b;
+    // if receive_counter is odd then exit
+    if (((receive_counter - 4) & 0x01) == 0) return;
+    // calculate destination
+    uint16_t * dest = image + ((y + dy) * FRAME_WIDTH) + (x * TILE_WIDTH);
+    // decode bitplanes
+    static uint16_t colors[2][2] = {{0x80FF, 0x8055}, {0x80AA, 0x8000}};
+    *dest++ = colors[(bitplanes[0] >> 7) & 0x01][(bitplanes[1] >> 7) & 0x01];
+    *dest++ = colors[(bitplanes[0] >> 6) & 0x01][(bitplanes[1] >> 6) & 0x01];
+    *dest++ = colors[(bitplanes[0] >> 5) & 0x01][(bitplanes[1] >> 5) & 0x01];
+    *dest++ = colors[(bitplanes[0] >> 4) & 0x01][(bitplanes[1] >> 4) & 0x01];
+    *dest++ = colors[(bitplanes[0] >> 3) & 0x01][(bitplanes[1] >> 3) & 0x01];
+    *dest++ = colors[(bitplanes[0] >> 2) & 0x01][(bitplanes[1] >> 2) & 0x01];
+    *dest++ = colors[(bitplanes[0] >> 1) & 0x01][(bitplanes[1] >> 1) & 0x01];
+    *dest   = colors[(bitplanes[0] >> 0) & 0x01][(bitplanes[1] >> 0) & 0x01];
+    // fix coordinates
+    if (++dy == TILE_HEIGHT) {
+        dy = 0;
+        if (++x == (FRAME_WIDTH / TILE_WIDTH)) {
+            x = 0;
+            if ((y += TILE_HEIGHT) >= FRAME_HEIGHT) y = 0;
+        }
+    }
 }
 
 void receive_data_commit(uint8_t cmd) {
     if (receiving_frame) image_received = true;
     receiving_frame = false;
     LED_OFF;
-}
-
-// image converter
-inline void convert_tile_row(uint32_t x, uint32_t y, uint8_t a, uint8_t b) {
-    static const uint16_t colors[2][2] = {{0x80FF, 0x8055}, {0x80AA, 0x8000}};
-    uint16_t * dest = image + ((y * FRAME_WIDTH) + x);
-    *dest++ = colors[(a >> 7) & 0x01][(b >> 7) & 0x01];
-    *dest++ = colors[(a >> 6) & 0x01][(b >> 6) & 0x01];
-    *dest++ = colors[(a >> 5) & 0x01][(b >> 5) & 0x01];
-    *dest++ = colors[(a >> 4) & 0x01][(b >> 4) & 0x01];
-    *dest++ = colors[(a >> 3) & 0x01][(b >> 3) & 0x01];
-    *dest++ = colors[(a >> 2) & 0x01][(b >> 2) & 0x01];
-    *dest++ = colors[(a >> 1) & 0x01][(b >> 1) & 0x01];
-    *dest   = colors[(a >> 0) & 0x01][(b >> 0) & 0x01];
-}
-
-void convert_image(void) {
-    uint8_t * src = receive_data + 3;
-
-    for (uint32_t y = 0; y != 14; y++) {
-        for (uint32_t x = 0; x != 16; x++) {
-            for (uint32_t t = 0; t != 8; t++) {
-                uint8_t  a = *src++, b = *src++;
-                convert_tile_row(x << 3, (y << 3) + t, a, b);
-            }
-        }
-    }
 }
 
 // link cable
@@ -108,10 +107,8 @@ int tud_video_commit_cb(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, video_probe_
     return VIDEO_ERROR_NONE;
 }
 
-volatile bool camera_send_text_frame = false;
-
 int64_t frame_rate_callback(alarm_id_t id, void *user_data) {
-    camera_send_text_frame  = true;
+    image_received  = true;
     return MS(1000 / FRAME_RATE);
 }
 
@@ -134,21 +131,14 @@ int main(void) {
     while (true) {
         // tinyusb device task
         tud_task();
-        // send frame if ready and connected
-        if (image_received) {
-            // convert image
-            convert_image();
-            image_received = false;
-            camera_send_text_frame = true;
-        }
         // send prepared image or duplicate previous to match the frame rate
-        if (camera_send_text_frame) {
+        if (image_received) {
             // check streaming is active
             if (tud_video_n_streaming(0, 0)) {
                 // check that the last frame is not still in transfer, if not - transfer the current frame
                 if (!in_transfer) tud_video_n_frame_xfer(0, 0, (void*)image, sizeof(image)), in_transfer = true;
             } else in_transfer = false;
-            camera_send_text_frame = false;
+            image_received = false;
         }
     }
 }

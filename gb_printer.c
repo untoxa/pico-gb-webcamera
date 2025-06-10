@@ -41,7 +41,6 @@ uint8_t protocol_data_process(uint8_t data_in) {
             break;
         case PRN_STATE_COMMAND:
             printer_command = data_in;
-            receive_data_command(printer_command);
             printer_state = PRN_STATE_COMPRESSION_INDICATOR;
             printer_status = next_printer_status;
             switch(printer_command) {
@@ -52,8 +51,10 @@ uint8_t protocol_data_process(uint8_t data_in) {
                 case PRN_COMMAND_PRINT:
                     last_print_moment = time_us_64();
                     if (printer_status & PRN_STATUS_FULL) next_printer_status |= PRN_STATUS_BUSY;
+                    receive_data_command(printer_command);
                 case CAM_COMMAND_TRANSFER:
                 case PRN_COMMAND_DATA:
+                    receive_data_command(printer_command);
                     receive_data_write(printer_command);
                     break;
                 case PRN_COMMAND_BREAK:
