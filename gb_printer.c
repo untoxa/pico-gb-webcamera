@@ -10,6 +10,7 @@ volatile enum printer_state printer_state = PRN_STATE_WAIT_FOR_SYNC_1;
 
 extern void receive_data_init();
 extern void receive_data_reset();
+extern void receive_data_command(uint8_t b);
 extern void receive_data_write(uint8_t b);
 extern void receive_data_commit(uint8_t cmd);
 
@@ -40,6 +41,7 @@ uint8_t protocol_data_process(uint8_t data_in) {
             break;
         case PRN_STATE_COMMAND:
             printer_command = data_in;
+            receive_data_command(printer_command);
             printer_state = PRN_STATE_COMPRESSION_INDICATOR;
             printer_status = next_printer_status;
             switch(printer_command) {

@@ -30,7 +30,7 @@
 #define CAM_COMMAND_TRANSFER    0x10
 
 // blink led
-#define PRINT_PROGRESS_LED
+//#define PRINT_PROGRESS_LED
 
 enum printer_state {
     PRN_STATE_WAIT_FOR_SYNC_1,

@@ -31,7 +31,7 @@ void receive_data_reset(void) {
 }
 
 void receive_data_init(void) {
-    receive_data_reset();
+    receive_data_pointer = 0;
 }
 
 void receive_data_command(uint8_t b) {
@@ -45,7 +45,7 @@ void receive_data_write(uint8_t b) {
          receive_data[receive_data_pointer++] = b;
 }
 
-void receive_data_commit(void) {
+void receive_data_commit(uint8_t cmd) {
     if (receiving_frame) image_received = true;
     receiving_frame = false;
     LED_OFF;
@@ -130,6 +130,7 @@ int main(void) {
     // initialize TinyUSB
     tud_init(BOARD_TUD_RHPORT);
 
+    // main loop
     while (true) {
         // tinyusb device task
         tud_task();
