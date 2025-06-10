@@ -30,6 +30,10 @@ void receive_data_reset(void) {
     receive_data_pointer = 0;
 }
 
+void receive_data_init(void) {
+    receive_data_reset();
+}
+
 void receive_data_command(uint8_t b) {
     if (receiving_frame = (b == CAM_COMMAND_TRANSFER)) LED_ON;
     receive_data_pointer = 0;

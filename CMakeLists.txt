@@ -19,7 +19,6 @@ add_executable(${PROJECT_NAME})
 
 # must match with pio filename and executable name from above
 pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/linkcable.pio)
-pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/linkcable_sm.pio)
 
 # must match with executable name and source file names
 target_sources(${PROJECT_NAME} PRIVATE pico_gb_printer_cam.c usb_descriptors.c gb_printer.c linkcable.c)
