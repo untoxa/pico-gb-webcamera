@@ -37,7 +37,7 @@
 #define TILE_WIDTH    8
 #define FRAME_WIDTH   (16 * TILE_WIDTH)
 #define FRAME_HEIGHT  (14 * TILE_HEIGHT)
-#define FRAME_RATE    15
+#define FRAME_RATE    30
 
 enum {
   ITF_NUM_VIDEO_CONTROL,

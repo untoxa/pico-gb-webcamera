@@ -21,47 +21,43 @@
 uint16_t image[RXCOUNT];
 
 // storage implementation
-int32_t receive_counter = -1;
+int32_t receive_counter;
 bool receiving_frame = false;
 volatile bool image_received = false;
-
-void receive_data_reset(void) {
-}
-
-void receive_data_init(void) {
-}
-
 uint16_t x, y, dy;
 
-void receive_data_command(uint8_t b) {
+void __not_in_flash_func(receive_data_reset)(void) { }
+void __not_in_flash_func(receive_data_init)(void) { }
+
+void __not_in_flash_func(receive_data_command)(uint8_t b) {
     if (receiving_frame = (b == CAM_COMMAND_TRANSFER)) LED_ON;
     receive_counter = 0;
     x = y = dy = 0;
 }
 
 void __not_in_flash_func(receive_data_write)(uint8_t b) {
-    static uint8_t bitplanes[2];
+    static uint8_t l, h;
     // if not "transfer image" then exit
     if (!receiving_frame) return;
     // skip header bytes
     if (++receive_counter < 4) return;
     // collect bitplanes data
-    bitplanes[(receive_counter - 4) & 0x01] = b;
+    if (receive_counter & 0x01) h = b; else l = b;
     // if receive_counter is odd then exit
-    if (((receive_counter - 4) & 0x01) == 0) return;
+    if ((receive_counter & 0x01) == 0) return;
     // calculate destination
     uint16_t * dest = image + ((y + dy) * FRAME_WIDTH) + (x * TILE_WIDTH);
     // decode bitplanes
-    static uint16_t colors[2][2] = {{0x80FF, 0x8055}, {0x80AA, 0x8000}};
-    *dest++ = colors[(bitplanes[0] >> 7) & 0x01][(bitplanes[1] >> 7) & 0x01];
-    *dest++ = colors[(bitplanes[0] >> 6) & 0x01][(bitplanes[1] >> 6) & 0x01];
-    *dest++ = colors[(bitplanes[0] >> 5) & 0x01][(bitplanes[1] >> 5) & 0x01];
-    *dest++ = colors[(bitplanes[0] >> 4) & 0x01][(bitplanes[1] >> 4) & 0x01];
-    *dest++ = colors[(bitplanes[0] >> 3) & 0x01][(bitplanes[1] >> 3) & 0x01];
-    *dest++ = colors[(bitplanes[0] >> 2) & 0x01][(bitplanes[1] >> 2) & 0x01];
-    *dest++ = colors[(bitplanes[0] >> 1) & 0x01][(bitplanes[1] >> 1) & 0x01];
-    *dest   = colors[(bitplanes[0] >> 0) & 0x01][(bitplanes[1] >> 0) & 0x01];
-    // fix coordinates
+    static uint16_t colors[4] = { 0x80FF, 0x8055, 0x80AA, 0x8000 };
+    *dest++ = colors[((l >> 7) & 0x01) | ((h >> 6) & 0x02)];
+    *dest++ = colors[((l >> 6) & 0x01) | ((h >> 5) & 0x02)];
+    *dest++ = colors[((l >> 5) & 0x01) | ((h >> 4) & 0x02)];
+    *dest++ = colors[((l >> 4) & 0x01) | ((h >> 3) & 0x02)];
+    *dest++ = colors[((l >> 3) & 0x01) | ((h >> 2) & 0x02)];
+    *dest++ = colors[((l >> 2) & 0x01) | ((h >> 1) & 0x02)];
+    *dest++ = colors[((l >> 1) & 0x01) | ((h >> 0) & 0x02)];
+    *dest   = colors[((l >> 0) & 0x01) | ((h << 1) & 0x02)];
+    // fix coordinates                     
     if (++dy == TILE_HEIGHT) {
         dy = 0;
         if (++x == (FRAME_WIDTH / TILE_WIDTH)) {
@@ -71,7 +67,7 @@ void __not_in_flash_func(receive_data_write)(uint8_t b) {
     }
 }
 
-void receive_data_commit(uint8_t cmd) {
+void __not_in_flash_func(receive_data_commit)(uint8_t cmd) {
     if (receiving_frame) image_received = true;
     receiving_frame = false;
     LED_OFF;
